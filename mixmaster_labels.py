@@ -7,7 +7,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import qrcode
 from bs4 import BeautifulSoup
@@ -56,6 +56,11 @@ def _normalize_mcm_url(url: str) -> str:
     return urljoin(MCM_BASE, url)
 
 
+def _is_mcmaster_url(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return host == "mcmaster.com" or host == "www.mcmaster.com" or host.endswith(".mcmaster.com")
+
+
 def parse_order_items(html: str) -> List[OrderItem]:
     soup = BeautifulSoup(html, "html.parser")
     items: List[OrderItem] = []
@@ -93,7 +98,7 @@ def parse_order_items(html: str) -> List[OrderItem]:
         product_url = ""
         for link in row.find_all("a", href=True):
             href = _normalize_mcm_url(link["href"].strip())
-            if "mcmaster.com" in href or part in link.get_text(" ", strip=True):
+            if _is_mcmaster_url(href) or part in link.get_text(" ", strip=True):
                 product_url = href
                 break
         if not product_url:
