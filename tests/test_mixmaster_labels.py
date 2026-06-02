@@ -1,8 +1,11 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from mixmaster_labels import infer_format, main, parse_label_size, parse_order_items
+from PIL import Image
+
+from mixmaster_labels import OrderItem, _draw_label, infer_format, main, parse_label_size, parse_order_items
 
 
 SAMPLE_HTML = """
@@ -52,14 +55,38 @@ class MixMasterLabelsTests(unittest.TestCase):
 
             png_path = td_path / "labels.png"
             pdf_path = td_path / "labels.pdf"
+            png_files = [td_path / "91251A148.png", td_path / "92141A033.png"]
+            pdf_files = [td_path / "91251A148.pdf", td_path / "92141A033.pdf"]
 
             self.assertEqual(main([str(html_path), str(png_path), "--label-size", "4x2in", "--dpi", "96"]), 0)
-            self.assertTrue(png_path.exists())
-            self.assertGreater(png_path.stat().st_size, 0)
+            for path in png_files:
+                self.assertTrue(path.exists())
+                self.assertGreater(path.stat().st_size, 0)
 
             self.assertEqual(main([str(html_path), str(pdf_path), "--label-size", "100x50mm", "--dpi", "96"]), 0)
-            self.assertTrue(pdf_path.exists())
-            self.assertGreater(pdf_path.stat().st_size, 0)
+            for path in pdf_files:
+                self.assertTrue(path.exists())
+                self.assertGreater(path.stat().st_size, 0)
+
+    def test_qty_text_is_optional(self):
+        item = OrderItem(
+            part_number="91251A148",
+            quantity="3",
+            description="18-8 Stainless Steel Hex Nut",
+            product_url="https://www.mcmaster.com/91251A148",
+            image_url="",
+        )
+        image = Image.new("RGB", (480, 240), "white")
+
+        with patch("mixmaster_labels.ImageDraw.ImageDraw.text") as mock_text:
+            _draw_label(image, item, include_qty=False, include_order_info=False)
+        drawn_text = [call.args[1] for call in mock_text.call_args_list]
+        self.assertNotIn("Qty: 3", drawn_text)
+
+        with patch("mixmaster_labels.ImageDraw.ImageDraw.text") as mock_text:
+            _draw_label(image, item, include_qty=True, include_order_info=False)
+        drawn_text = [call.args[1] for call in mock_text.call_args_list]
+        self.assertIn("Qty: 3", drawn_text)
 
 
 if __name__ == "__main__":
